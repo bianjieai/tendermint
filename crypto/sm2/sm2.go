@@ -50,7 +50,7 @@ func (privKey PrivKeySm2) Bytes() []byte {
 
 func (privKey PrivKeySm2) Sign(msg []byte) ([]byte, error) {
 	priv := privKey.GetPrivateKey()
-	r, s, err := sm2.Sign(priv, msg)
+	r, s, err := sm2.Sm2Sign(priv, msg, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (pubKey PubKeySm2) VerifyBytes(msg []byte, sig []byte) bool {
 	r := new(big.Int).SetBytes(sig[:32])
 	s := new(big.Int).SetBytes(sig[32:])
 
-	return sm2.Verify(publicKey, msg, r, s)
+	return sm2.Sm2Verify(publicKey, msg, nil, r, s)
 }
 
 func (pubKey PubKeySm2) Sm2VerifyBytes(msg []byte, sig []byte) bool {
