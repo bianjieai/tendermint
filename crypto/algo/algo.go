@@ -14,7 +14,7 @@ const (
 	PubKeySm2     = "sm2"
 )
 
-var Algo = "sm2"
+var Algo = "ed25519"
 
 func GetPubKeyType() string {
 	switch Algo {
