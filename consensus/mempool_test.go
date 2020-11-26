@@ -39,7 +39,7 @@ func TestMempoolNoProgressUntilTxsAvailable(t *testing.T) {
 	ensureNoNewEventOnChannel(newBlockCh)
 	deliverTxsRange(cs, 0, 1)
 	ensureNewEventOnChannel(newBlockCh) // commit txs
-	//ensureNewEventOnChannel(newBlockCh) // commit updated app hash
+	ensureNewEventOnChannel(newBlockCh) // commit updated app hash
 	ensureNoNewEventOnChannel(newBlockCh)
 }
 
