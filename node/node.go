@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	_ "net/http/pprof" // nolint: gosec // securely exposed on separate, optional port
 	"strings"
 	"time"
 
@@ -50,6 +49,10 @@ import (
 	"github.com/tendermint/tendermint/types"
 	tmtime "github.com/tendermint/tendermint/types/time"
 	"github.com/tendermint/tendermint/version"
+
+	_ "net/http/pprof" // nolint: gosec // securely exposed on separate, optional port
+
+	_ "github.com/lib/pq" // provide the psql db driver
 )
 
 //------------------------------------------------------------------------------
@@ -1012,6 +1015,16 @@ func (n *Node) OnStop() {
 			n.Logger.Error("Prometheus HTTP server Shutdown", "err", err)
 		}
 	}
+	if n.blockStore != nil {
+		if err := n.blockStore.Close(); err != nil {
+			n.Logger.Error("problem closing blockstore", "err", err)
+		}
+	}
+	if n.stateStore != nil {
+		if err := n.stateStore.Close(); err != nil {
+			n.Logger.Error("problem closing statestore", "err", err)
+		}
+	}
 }
 
 // ConfigureRPC makes sure RPC has all the objects it needs to operate.
@@ -1087,6 +1100,7 @@ func (n *Node) startRPC() ([]net.Listener, error) {
 				}
 			}),
 			rpcserver.ReadLimit(config.MaxBodyBytes),
+			rpcserver.WriteChanCapacity(n.config.RPC.WebSocketWriteBufferSize),
 		)
 		wm.SetLogger(wmLogger)
 		mux.HandleFunc("/websocket", wm.WebsocketHandler)

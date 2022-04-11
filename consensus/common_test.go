@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log/term"
+	"github.com/go-kit/log/term"
 	"github.com/stretchr/testify/require"
 
 	"path"
@@ -389,7 +389,7 @@ func newStateWithConfigAndBlockStore(
 	blockStore := store.NewBlockStore(blockDB)
 
 	// one for mempool, one for consensus
-	mtx := new(tmsync.RWMutex)
+	mtx := new(tmsync.Mutex)
 	proxyAppConnMem := abcicli.NewLocalClient(mtx, app)
 	proxyAppConnCon := abcicli.NewLocalClient(mtx, app)
 

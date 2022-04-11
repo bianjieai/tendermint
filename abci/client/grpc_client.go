@@ -27,7 +27,7 @@ type grpcClient struct {
 	conn     *grpc.ClientConn
 	chReqRes chan *ReqRes // dispatches "async" responses to callbacks *in order*, needed by mempool
 
-	mtx   tmsync.RWMutex
+	mtx   tmsync.Mutex
 	addr  string
 	err   error
 	resCb func(*types.Request, *types.Response) // listens to all callbacks
@@ -90,6 +90,7 @@ func (cli *grpcClient) OnStart() error {
 
 RETRY_LOOP:
 	for {
+		//nolint:staticcheck // SA1019 Existing use of deprecated but supported dial option.
 		conn, err := grpc.Dial(cli.addr, grpc.WithInsecure(), grpc.WithContextDialer(dialerFunc))
 		if err != nil {
 			if cli.mustConnect {
@@ -146,8 +147,8 @@ func (cli *grpcClient) StopForError(err error) {
 }
 
 func (cli *grpcClient) Error() error {
-	cli.mtx.RLock()
-	defer cli.mtx.RUnlock()
+	cli.mtx.Lock()
+	defer cli.mtx.Unlock()
 	return cli.err
 }
 
@@ -155,8 +156,8 @@ func (cli *grpcClient) Error() error {
 // NOTE: callback may get internally generated flush responses.
 func (cli *grpcClient) SetResponseCallback(resCb Callback) {
 	cli.mtx.Lock()
-	defer cli.mtx.Unlock()
 	cli.resCb = resCb
+	cli.mtx.Unlock()
 }
 
 //----------------------------------------
