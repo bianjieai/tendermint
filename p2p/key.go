@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 
 	"github.com/tendermint/tendermint/crypto"
-	"github.com/tendermint/tendermint/crypto/ed25519"
+	"github.com/tendermint/tendermint/crypto/algo"
 	tmjson "github.com/tendermint/tendermint/libs/json"
 	tmos "github.com/tendermint/tendermint/libs/os"
 )
@@ -56,7 +56,7 @@ func LoadOrGenNodeKey(filePath string) (*NodeKey, error) {
 		return nodeKey, nil
 	}
 
-	privKey := ed25519.GenPrivKey()
+	privKey := algo.GenPrivKey()
 	nodeKey := &NodeKey{
 		PrivKey: privKey,
 	}
