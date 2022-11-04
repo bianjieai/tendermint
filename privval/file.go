@@ -7,10 +7,11 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/tendermint/tendermint/crypto/algo"
+
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/tendermint/tendermint/crypto"
-	"github.com/tendermint/tendermint/crypto/ed25519"
 	tmbytes "github.com/tendermint/tendermint/libs/bytes"
 	tmjson "github.com/tendermint/tendermint/libs/json"
 	tmos "github.com/tendermint/tendermint/libs/os"
@@ -170,7 +171,8 @@ func NewFilePV(privKey crypto.PrivKey, keyFilePath, stateFilePath string) *FileP
 // GenFilePV generates a new validator with randomly generated private key
 // and sets the filePaths, but does not call Save().
 func GenFilePV(keyFilePath, stateFilePath string) *FilePV {
-	return NewFilePV(ed25519.GenPrivKey(), keyFilePath, stateFilePath)
+	//return NewFilePV(ed25519.GenPrivKey(), keyFilePath, stateFilePath)
+	return NewFilePV(algo.GenPrivKey(), keyFilePath, stateFilePath)
 }
 
 // LoadFilePV loads a FilePV from the filePaths.  The FilePV handles double

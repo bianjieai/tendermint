@@ -3,9 +3,11 @@ package types
 import (
 	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/crypto"
+	"github.com/tendermint/tendermint/crypto/algo"
 	"github.com/tendermint/tendermint/crypto/ed25519"
 	cryptoenc "github.com/tendermint/tendermint/crypto/encoding"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
+	"github.com/tendermint/tendermint/crypto/sm2"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 )
 
@@ -15,6 +17,7 @@ import (
 const (
 	ABCIPubKeyTypeEd25519   = ed25519.KeyType
 	ABCIPubKeyTypeSecp256k1 = secp256k1.KeyType
+	ABCIPubKeyTypeSm2       = sm2.KeyType
 )
 
 // TODO: Make non-global by allowing for registration of more pubkey types
@@ -22,9 +25,21 @@ const (
 var ABCIPubKeyTypesToNames = map[string]string{
 	ABCIPubKeyTypeEd25519:   ed25519.PubKeyName,
 	ABCIPubKeyTypeSecp256k1: secp256k1.PubKeyName,
+	ABCIPubKeyTypeSm2:       sm2.PubKeyName,
 }
 
 //-------------------------------------------------------
+
+func GetABCIPubKeyType() string {
+	switch algo.Algo {
+	case algo.ED25519:
+		return ABCIPubKeyTypeEd25519
+	case algo.SM2:
+		return ABCIPubKeyTypeSm2
+	default:
+		return ABCIPubKeyTypeEd25519
+	}
+}
 
 // TM2PB is used for converting Tendermint ABCI to protobuf ABCI.
 // UNSTABLE

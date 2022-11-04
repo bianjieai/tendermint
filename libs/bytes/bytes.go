@@ -63,3 +63,8 @@ func (bz HexBytes) Format(s fmt.State, verb rune) {
 		s.Write([]byte(fmt.Sprintf("%X", []byte(bz))))
 	}
 }
+
+// MarshalYAML returns the YAML representation
+func (bz HexBytes) MarshalYAML() (interface{}, error) {
+	return bz.String(), nil
+}

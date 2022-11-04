@@ -54,6 +54,7 @@ require (
 
 require (
 	github.com/informalsystems/tm-load-test v1.0.0
+	github.com/tjfoc/gmsm v1.4.1
 	gonum.org/v1/gonum v0.11.0
 	google.golang.org/protobuf v1.28.1
 )
