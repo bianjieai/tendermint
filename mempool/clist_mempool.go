@@ -81,7 +81,8 @@ type CListMempool struct {
 
 	// Keep a cache of already-seen txs.
 	// This reduces the pressure on the proxyApp.
-	cache txCache
+	cache    txCache
+	txBuffer chan *mempoolTx
 
 	logger log.Logger
 
@@ -109,6 +110,7 @@ func NewCListMempool(
 		recheckEnd:    nil,
 		logger:        log.NewNopLogger(),
 		metrics:       NopMetrics(),
+		txBuffer:      make(chan *mempoolTx, config.CacheSize),
 	}
 	if config.CacheSize > 0 {
 		mempool.cache = newMapTxCache(config.CacheSize)
@@ -119,6 +121,7 @@ func NewCListMempool(
 	for _, option := range options {
 		option(mempool)
 	}
+	go mempool.addTxListRoutine()
 	return mempool
 }
 
@@ -190,7 +193,7 @@ func (mem *CListMempool) Unlock() {
 
 // Safe for concurrent use by multiple goroutines.
 func (mem *CListMempool) Size() int {
-	return mem.txs.Len()
+	return len(mem.txBuffer) + mem.txs.Len()
 }
 
 // Safe for concurrent use by multiple goroutines.
@@ -289,9 +292,6 @@ func (mem *CListMempool) CheckTx(tx types.Tx, cb func(*abci.Response), txInfo Tx
 
 		return ErrTxInCache
 	}
-	mem.updateMtx.RLock()
-	// use defer to unlock mutex because application (*local client*) might panic
-	defer mem.updateMtx.RUnlock()
 
 	if mem.preCheck != nil {
 		if err := mem.preCheck(tx); err != nil {
@@ -362,10 +362,23 @@ func (mem *CListMempool) reqResCb(
 // Called from:
 //  - resCbFirstTime (lock not held) if tx is valid
 func (mem *CListMempool) addTx(memTx *mempoolTx) {
+	mem.txBuffer <- memTx
+}
+
+func (mem *CListMempool) addTxListRoutine() {
+	for memTx := range mem.txBuffer {
+		mem.doAddTx(memTx)
+	}
+}
+
+func (mem *CListMempool) doAddTx(memTx *mempoolTx) {
+	mem.updateMtx.Lock()
+	defer mem.updateMtx.Unlock()
 	e := mem.txs.PushBack(memTx)
 	mem.txsMap.Store(TxKey(memTx.tx), e)
 	atomic.AddInt64(&mem.txsBytes, int64(len(memTx.tx)))
 	mem.metrics.TxSizeBytes.Observe(float64(len(memTx.tx)))
+	mem.notifyTxsAvailable()
 }
 
 // Called from:
@@ -447,7 +460,7 @@ func (mem *CListMempool) resCbFirstTime(
 				"height", memTx.height,
 				"total", mem.Size(),
 			)
-			mem.notifyTxsAvailable()
+
 		} else {
 			// ignore bad transaction
 			mem.logger.Debug("rejected bad transaction",
@@ -640,7 +653,8 @@ func (mem *CListMempool) Update(
 	if postCheck != nil {
 		mem.postCheck = postCheck
 	}
-
+	mem.updateMtx.Lock()
+	defer mem.updateMtx.Unlock()
 	for i, tx := range txs {
 		if deliverTxResponses[i].Code == abci.CodeTypeOK {
 			// Add valid committed tx to the cache (if missing).

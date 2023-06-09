@@ -104,7 +104,16 @@ func (app *localClient) CheckTxAsync(req types.RequestCheckTx) *ReqRes {
 	/*app.mtx.Lock()
 	defer app.mtx.Unlock()*/
 
-	res := app.Application.CheckTx(req)
+	res := types.ResponseCheckTx{
+		Code:      types.CodeTypeOK,
+		Data:      make([]byte, 0),
+		Log:       "",
+		Info:      "",
+		GasWanted: 0,
+		GasUsed:   0,
+		Events:    make([]types.Event, 0),
+		Codespace: "",
+	}
 	return app.callback(
 		types.ToRequestCheckTx(req),
 		types.ToResponseCheckTx(res),
@@ -298,8 +307,8 @@ func (app *localClient) InitChainSync(req types.RequestInitChain) (*types.Respon
 }
 
 func (app *localClient) ProcessProposalSync(ctx context.Context, req types.RequestProcessProposal) (*types.ResponseProcessProposal, error) {
-	/*app.mtx.Lock()
-	defer app.mtx.Unlock()*/
+	app.mtx.Lock()
+	defer app.mtx.Unlock()
 
 	res := app.Application.ProcessProposal(ctx, req)
 	return &res, nil
@@ -322,8 +331,8 @@ func (app *localClient) EndBlockSync(ctx context.Context, req types.RequestEndBl
 }
 
 func (app *localClient) FinalizeBlockerSync(ctx context.Context, req types.RequestFinalizeBlocker) (*types.ResponseFinalizeBlocker, error) {
-	/*app.mtx.Lock()
-	defer app.mtx.Unlock()*/
+	app.mtx.Lock()
+	defer app.mtx.Unlock()
 
 	res := app.Application.FinalizeBlocker(ctx, req)
 	return &res, nil
