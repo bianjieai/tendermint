@@ -41,7 +41,7 @@ func SetOption(client abcicli.Client, key, value string) error {
 }
 
 func Commit(client abcicli.Client, hashExp []byte) error {
-	res, err := client.CommitSync(nil)
+	res, err := client.CommitSync()
 	data := res.Data
 	if err != nil {
 		fmt.Println("Failed test: Commit")
@@ -58,7 +58,7 @@ func Commit(client abcicli.Client, hashExp []byte) error {
 }
 
 func DeliverTx(client abcicli.Client, txBytes []byte, codeExp uint32, dataExp []byte) error {
-	res, _ := client.DeliverTxSync(nil, types.RequestDeliverTx{Tx: txBytes})
+	res, _ := client.DeliverTxSync(types.RequestDeliverTx{Tx: txBytes})
 	code, data, log := res.Code, res.Data, res.Log
 	if code != codeExp {
 		fmt.Println("Failed test: DeliverTx")

@@ -33,7 +33,7 @@ func setOption(client abcicli.Client, key, value string) {
 }
 
 func commit(client abcicli.Client, hashExp []byte) {
-	res, err := client.CommitSync(nil)
+	res, err := client.CommitSync()
 	if err != nil {
 		panicf("client error: %v", err)
 	}
@@ -43,7 +43,7 @@ func commit(client abcicli.Client, hashExp []byte) {
 }
 
 func deliverTx(client abcicli.Client, txBytes []byte, codeExp uint32, dataExp []byte) {
-	res, err := client.DeliverTxSync(nil, types.RequestDeliverTx{Tx: txBytes})
+	res, err := client.DeliverTxSync(types.RequestDeliverTx{Tx: txBytes})
 	if err != nil {
 		panicf("client error: %v", err)
 	}

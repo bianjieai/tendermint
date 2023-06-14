@@ -25,13 +25,13 @@ const (
 
 func testKVStore(t *testing.T, app types.Application, tx []byte, key, value string) {
 	req := types.RequestDeliverTx{Tx: tx}
-	ar := app.DeliverTx(nil, req)
+	ar := app.DeliverTx(req)
 	require.False(t, ar.IsErr(), ar)
 	// repeating tx doesn't raise error
-	ar = app.DeliverTx(nil, req)
+	ar = app.DeliverTx(req)
 	require.False(t, ar.IsErr(), ar)
 	// commit
-	app.Commit(nil)
+	app.Commit()
 
 	info := app.Info(types.RequestInfo{})
 	require.NotZero(t, info.LastBlockHeight)
@@ -106,9 +106,9 @@ func TestPersistentKVStoreInfo(t *testing.T) {
 	header := tmproto.Header{
 		Height: height,
 	}
-	kvstore.BeginBlock(nil, types.RequestBeginBlock{Hash: hash, Header: header})
-	kvstore.EndBlock(nil, types.RequestEndBlock{Height: header.Height})
-	kvstore.Commit(nil)
+	kvstore.BeginBlock(types.RequestBeginBlock{Hash: hash, Header: header})
+	kvstore.EndBlock(types.RequestEndBlock{Height: header.Height})
+	kvstore.Commit()
 
 	resInfo = kvstore.Info(types.RequestInfo{})
 	if resInfo.LastBlockHeight != height {
@@ -197,14 +197,14 @@ func makeApplyBlock(
 		Height: height,
 	}
 
-	kvstore.BeginBlock(nil, types.RequestBeginBlock{Hash: hash, Header: header})
+	kvstore.BeginBlock(types.RequestBeginBlock{Hash: hash, Header: header})
 	for _, tx := range txs {
-		if r := kvstore.DeliverTx(nil, types.RequestDeliverTx{Tx: tx}); r.IsErr() {
+		if r := kvstore.DeliverTx(types.RequestDeliverTx{Tx: tx}); r.IsErr() {
 			t.Fatal(r)
 		}
 	}
-	resEndBlock := kvstore.EndBlock(nil, types.RequestEndBlock{Height: header.Height})
-	kvstore.Commit(nil)
+	resEndBlock := kvstore.EndBlock(types.RequestEndBlock{Height: header.Height})
+	kvstore.Commit()
 
 	valsEqual(t, diff, resEndBlock.ValidatorUpdates)
 
@@ -323,15 +323,15 @@ func runClientTests(t *testing.T, client abcicli.Client) {
 }
 
 func testClient(t *testing.T, app abcicli.Client, tx []byte, key, value string) {
-	ar, err := app.DeliverTxSync(nil, types.RequestDeliverTx{Tx: tx})
+	ar, err := app.DeliverTxSync(types.RequestDeliverTx{Tx: tx})
 	require.NoError(t, err)
 	require.False(t, ar.IsErr(), ar)
 	// repeating tx doesn't raise error
-	ar, err = app.DeliverTxSync(nil, types.RequestDeliverTx{Tx: tx})
+	ar, err = app.DeliverTxSync(types.RequestDeliverTx{Tx: tx})
 	require.NoError(t, err)
 	require.False(t, ar.IsErr(), ar)
 	// commit
-	_, err = app.CommitSync(nil)
+	_, err = app.CommitSync()
 	require.NoError(t, err)
 
 	info, err := app.InfoSync(types.RequestInfo{})

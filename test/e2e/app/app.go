@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"golang.org/x/net/context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -89,7 +88,7 @@ func (app *Application) CheckTx(req abci.RequestCheckTx) abci.ResponseCheckTx {
 }
 
 // DeliverTx implements ABCI.
-func (app *Application) DeliverTx(context context.Context, req abci.RequestDeliverTx) abci.ResponseDeliverTx {
+func (app *Application) DeliverTx(req abci.RequestDeliverTx) abci.ResponseDeliverTx {
 	key, value, err := parseTx(req.Tx)
 	if err != nil {
 		panic(err) // shouldn't happen since we verified it in CheckTx
@@ -99,7 +98,7 @@ func (app *Application) DeliverTx(context context.Context, req abci.RequestDeliv
 }
 
 // EndBlock implements ABCI.
-func (app *Application) EndBlock(c context.Context, req abci.RequestEndBlock) abci.ResponseEndBlock {
+func (app *Application) EndBlock(req abci.RequestEndBlock) abci.ResponseEndBlock {
 	valUpdates, err := app.validatorUpdates(uint64(req.Height))
 	if err != nil {
 		panic(err)
@@ -126,7 +125,7 @@ func (app *Application) EndBlock(c context.Context, req abci.RequestEndBlock) ab
 }
 
 // Commit implements ABCI.
-func (app *Application) Commit(context.Context) abci.ResponseCommit {
+func (app *Application) Commit() abci.ResponseCommit {
 	height, hash, err := app.state.Commit()
 	if err != nil {
 		panic(err)

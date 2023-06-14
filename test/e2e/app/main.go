@@ -129,15 +129,7 @@ func startNode(cfg *Config) error {
 		return fmt.Errorf("failed to setup config: %w", err)
 	}
 
-	n, err := node.NewNode(tmcfg,
-		privval.LoadOrGenFilePV(tmcfg.PrivValidatorKeyFile(), tmcfg.PrivValidatorStateFile()),
-		nodeKey,
-		proxy.NewLocalClientCreator(app),
-		node.DefaultGenesisDocProviderFunc(tmcfg),
-		node.DefaultDBProvider,
-		node.DefaultMetricsProvider(tmcfg.Instrumentation),
-		nodeLogger,
-	)
+	n, err := node.NewNode(tmcfg, privval.LoadOrGenFilePV(tmcfg.PrivValidatorKeyFile(), tmcfg.PrivValidatorStateFile()), nodeKey, proxy.NewLocalClientCreator(app), node.DefaultGenesisDocProviderFunc(tmcfg), node.DefaultDBProvider, node.DefaultMetricsProvider(tmcfg.Instrumentation), nodeLogger)
 	if err != nil {
 		return err
 	}

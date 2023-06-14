@@ -2,7 +2,6 @@ package consensus
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -1274,7 +1273,7 @@ func (cs *State) createProposalBlock() (block *types.Block, blockParts *types.Pa
 	}
 	proposerAddr := cs.privValidatorPubKey.Address()
 
-	return cs.blockExec.CreateProposalBlock(context.Background(), cs.Height, cs.state, commit, proposerAddr)
+	return cs.blockExec.CreateProposalBlock(cs.Height, cs.state, commit, proposerAddr)
 }
 
 // Enter: any +2/3 prevotes at next round.
@@ -1508,7 +1507,7 @@ func (cs *State) finalizeCommit(height int64) {
 	// NOTE The block.AppHash wont reflect these txs until the next block.
 	var err error
 	var retainHeight int64
-	stateCopy, retainHeight, err = cs.blockExec.ApplyBlock(nil, stateCopy, types.BlockID{Hash: block.Hash(), PartSetHeader: blockParts.Header()}, block)
+	stateCopy, retainHeight, err = cs.blockExec.ApplyBlock(stateCopy, types.BlockID{Hash: block.Hash(), PartSetHeader: blockParts.Header()}, block)
 	if err != nil {
 		cs.Logger.Error("Error on ApplyBlock", "err", err)
 		return

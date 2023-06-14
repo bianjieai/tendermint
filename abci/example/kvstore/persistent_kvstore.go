@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"golang.org/x/net/context"
 	"strconv"
 	"strings"
 
@@ -68,7 +67,7 @@ func (app *PersistentKVStoreApplication) SetOption(req types.RequestSetOption) t
 }
 
 // tx is either "val:pubkey!power" or "key=value" or just arbitrary bytes
-func (app *PersistentKVStoreApplication) DeliverTx(c context.Context, req types.RequestDeliverTx) types.ResponseDeliverTx {
+func (app *PersistentKVStoreApplication) DeliverTx(req types.RequestDeliverTx) types.ResponseDeliverTx {
 	// if it starts with "val:", update the validator set
 	// format is "val:pubkey!power"
 	if isValidatorTx(req.Tx) {
@@ -78,7 +77,7 @@ func (app *PersistentKVStoreApplication) DeliverTx(c context.Context, req types.
 	}
 
 	// otherwise, update the key-value store
-	return app.app.DeliverTx(nil, req)
+	return app.app.DeliverTx(req)
 }
 
 func (app *PersistentKVStoreApplication) CheckTx(req types.RequestCheckTx) types.ResponseCheckTx {
@@ -86,8 +85,8 @@ func (app *PersistentKVStoreApplication) CheckTx(req types.RequestCheckTx) types
 }
 
 // Commit will panic if InitChain was not called
-func (app *PersistentKVStoreApplication) Commit(context.Context) types.ResponseCommit {
-	return app.app.Commit(nil)
+func (app *PersistentKVStoreApplication) Commit() types.ResponseCommit {
+	return app.app.Commit()
 }
 
 // When path=/val and data={validator address}, returns the validator update (types.ValidatorUpdate) varint encoded.
@@ -120,15 +119,15 @@ func (app *PersistentKVStoreApplication) InitChain(req types.RequestInitChain) t
 	return types.ResponseInitChain{}
 }
 
-func (app *PersistentKVStoreApplication) ProcessProposal(context context.Context, req types.RequestProcessProposal) types.ResponseProcessProposal {
+func (app *PersistentKVStoreApplication) ProcessProposal(req types.RequestProcessProposal) types.ResponseProcessProposal {
 	return types.ResponseProcessProposal{}
 }
-func (app *PersistentKVStoreApplication) FinalizeBlocker(ctx context.Context, blocker types.RequestFinalizeBlocker) types.ResponseFinalizeBlocker {
+func (app *PersistentKVStoreApplication) FinalizeBlocker(blocker types.RequestFinalizeBlocker) types.ResponseFinalizeBlocker {
 	return types.ResponseFinalizeBlocker{}
 }
 
 // Track the block hash and header information
-func (app *PersistentKVStoreApplication) BeginBlock(c context.Context, req types.RequestBeginBlock) types.ResponseBeginBlock {
+func (app *PersistentKVStoreApplication) BeginBlock(req types.RequestBeginBlock) types.ResponseBeginBlock {
 	// reset valset changes
 	app.ValUpdates = make([]types.ValidatorUpdate, 0)
 
@@ -154,7 +153,7 @@ func (app *PersistentKVStoreApplication) BeginBlock(c context.Context, req types
 }
 
 // Update the validator set
-func (app *PersistentKVStoreApplication) EndBlock(c context.Context, req types.RequestEndBlock) types.ResponseEndBlock {
+func (app *PersistentKVStoreApplication) EndBlock(req types.RequestEndBlock) types.ResponseEndBlock {
 	return types.ResponseEndBlock{ValidatorUpdates: app.ValUpdates}
 }
 

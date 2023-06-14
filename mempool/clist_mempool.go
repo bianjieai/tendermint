@@ -2,14 +2,13 @@ package mempool
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"fmt"
 	"github.com/VictoriaMetrics/fastcache"
-	"github.com/tendermint/tendermint/tools/global"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	abci "github.com/tendermint/tendermint/abci/types"
 	cfg "github.com/tendermint/tendermint/config"
@@ -250,6 +249,15 @@ func (mem *CListMempool) TxsWaitChan() <-chan struct{} {
 //
 // Safe for concurrent use by multiple goroutines.
 func (mem *CListMempool) CheckTx(tx types.Tx, cb func(*abci.Response), txInfo TxInfo) error {
+	start := time.Now().Nanosecond()
+	defer func() {
+		end := time.Now().Nanosecond()
+		checkTxTime := (end - start) / 1e6
+		if checkTxTime > 100 {
+			mem.logger.Error("CheckTx use too long time", "time", checkTxTime)
+		}
+	}()
+
 	txSize := len(tx)
 
 	if err := mem.isFull(txSize); err != nil {
@@ -543,8 +551,6 @@ func (mem *CListMempool) notifyTxsAvailable() {
 
 // Safe for concurrent use by multiple goroutines.
 /*func (mem *CListMempool) ReapMaxBytesMaxGas(ctx context.Context, maxBytes, maxGas int64) types.Txs {
-	_, span := global.StartSpan(ctx, "tendermint.mempool.ReapMaxBytesMaxGas")
-	defer span.End()
 
 	mem.updateMtx.RLock()
 	defer mem.updateMtx.RUnlock()
@@ -578,9 +584,7 @@ func (mem *CListMempool) notifyTxsAvailable() {
 	return txs
 }*/
 
-func (mem *CListMempool) ReapMaxBytesMaxGas(ctx context.Context, maxBytes, maxGas int64) types.Txs {
-	_, span := global.StartSpan(ctx, "tendermint.mempool.ReapMaxBytesMaxGas")
-	defer span.End()
+func (mem *CListMempool) ReapMaxBytesMaxGas(maxBytes, maxGas int64) types.Txs {
 	mem.updateMtx.RLock()
 	defer mem.updateMtx.RUnlock()
 

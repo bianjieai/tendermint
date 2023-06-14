@@ -1,14 +1,12 @@
 package consensus
 
 import (
-	context2 "context"
 	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/libs/clist"
 	mempl "github.com/tendermint/tendermint/mempool"
 	tmstate "github.com/tendermint/tendermint/proto/tendermint/state"
 	"github.com/tendermint/tendermint/proxy"
 	"github.com/tendermint/tendermint/types"
-	"golang.org/x/net/context"
 )
 
 //-----------------------------------------------------------------------------
@@ -23,7 +21,7 @@ func (emptyMempool) Size() int { return 0 }
 func (emptyMempool) CheckTx(_ types.Tx, _ func(*abci.Response), _ mempl.TxInfo) error {
 	return nil
 }
-func (emptyMempool) ReapMaxBytesMaxGas(ctx context2.Context, maxBytes, maxGas int64) types.Txs {
+func (emptyMempool) ReapMaxBytesMaxGas(maxBytes, maxGas int64) types.Txs {
 	return types.Txs{}
 }
 func (emptyMempool) ReapMaxTxs(n int) types.Txs { return types.Txs{} }
@@ -75,7 +73,7 @@ type mockProxyApp struct {
 	abciResponses *tmstate.ABCIResponses
 }
 
-func (mock *mockProxyApp) DeliverTx(context context.Context, req abci.RequestDeliverTx) abci.ResponseDeliverTx {
+func (mock *mockProxyApp) DeliverTx(req abci.RequestDeliverTx) abci.ResponseDeliverTx {
 	r := mock.abciResponses.DeliverTxs[mock.txCount]
 	mock.txCount++
 	if r == nil {
@@ -84,11 +82,11 @@ func (mock *mockProxyApp) DeliverTx(context context.Context, req abci.RequestDel
 	return *r
 }
 
-func (mock *mockProxyApp) EndBlock(c context.Context, req abci.RequestEndBlock) abci.ResponseEndBlock {
+func (mock *mockProxyApp) EndBlock(req abci.RequestEndBlock) abci.ResponseEndBlock {
 	mock.txCount = 0
 	return *mock.abciResponses.EndBlock
 }
 
-func (mock *mockProxyApp) Commit(context.Context) abci.ResponseCommit {
+func (mock *mockProxyApp) Commit() abci.ResponseCommit {
 	return abci.ResponseCommit{Data: mock.appHash}
 }

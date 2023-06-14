@@ -2,10 +2,8 @@ package mempool
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/tendermint/tendermint/tools/global"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -691,9 +689,7 @@ func (mem *CListBatchMempool) notifyTxsAvailable() {
 	}
 }
 
-func (mem *CListBatchMempool) ReapMaxBytesMaxGas(ctx context.Context, maxBytes, maxGas int64) types.Txs {
-	_, span := global.StartSpan(ctx, "tendermint.mempool.ReapMaxBytesMaxGas")
-	defer span.End()
+func (mem *CListBatchMempool) ReapMaxBytesMaxGas(maxBytes, maxGas int64) types.Txs {
 	mem.updateMtx.RLock()
 	defer mem.updateMtx.RUnlock()
 

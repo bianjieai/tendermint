@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	abcicli "github.com/tendermint/tendermint/abci/client"
 	"github.com/tendermint/tendermint/abci/types"
 )
@@ -17,12 +16,12 @@ type AppConnConsensus interface {
 
 	InitChainSync(types.RequestInitChain) (*types.ResponseInitChain, error)
 
-	ProcessProposalSync(context.Context, types.RequestProcessProposal) (*types.ResponseProcessProposal, error)
-	BeginBlockSync(context.Context, types.RequestBeginBlock) (*types.ResponseBeginBlock, error)
-	FinalizeBlockerSync(ctx context.Context, blocker types.RequestFinalizeBlocker) (*types.ResponseFinalizeBlocker, error)
-	DeliverTxAsync(context.Context, types.RequestDeliverTx) *abcicli.ReqRes
-	EndBlockSync(context.Context, types.RequestEndBlock) (*types.ResponseEndBlock, error)
-	CommitSync(context.Context) (*types.ResponseCommit, error)
+	ProcessProposalSync(types.RequestProcessProposal) (*types.ResponseProcessProposal, error)
+	BeginBlockSync(types.RequestBeginBlock) (*types.ResponseBeginBlock, error)
+	FinalizeBlockerSync(req types.RequestFinalizeBlocker) (*types.ResponseFinalizeBlocker, error)
+	DeliverTxAsync(types.RequestDeliverTx) *abcicli.ReqRes
+	EndBlockSync(types.RequestEndBlock) (*types.ResponseEndBlock, error)
+	CommitSync() (*types.ResponseCommit, error)
 }
 
 type AppConnMempool interface {
@@ -80,29 +79,29 @@ func (app *appConnConsensus) InitChainSync(req types.RequestInitChain) (*types.R
 	return app.appConn.InitChainSync(req)
 }
 
-func (app *appConnConsensus) ProcessProposalSync(ctx context.Context, req types.RequestProcessProposal) (*types.ResponseProcessProposal, error) {
-	return app.appConn.ProcessProposalSync(ctx, req)
+func (app *appConnConsensus) ProcessProposalSync(req types.RequestProcessProposal) (*types.ResponseProcessProposal, error) {
+	return app.appConn.ProcessProposalSync(req)
 }
 
-func (app *appConnConsensus) BeginBlockSync(ctx context.Context, req types.RequestBeginBlock) (*types.ResponseBeginBlock, error) {
-	return app.appConn.BeginBlockSync(ctx, req)
+func (app *appConnConsensus) BeginBlockSync(req types.RequestBeginBlock) (*types.ResponseBeginBlock, error) {
+	return app.appConn.BeginBlockSync(req)
 }
 
-func (app *appConnConsensus) DeliverTxAsync(ctx context.Context, req types.RequestDeliverTx) *abcicli.ReqRes {
-	return app.appConn.DeliverTxAsync(ctx, req)
+func (app *appConnConsensus) DeliverTxAsync(req types.RequestDeliverTx) *abcicli.ReqRes {
+	return app.appConn.DeliverTxAsync(req)
 }
 
-func (app *appConnConsensus) FinalizeBlockerSync(ctx context.Context, req types.RequestFinalizeBlocker) (*types.ResponseFinalizeBlocker, error) {
+func (app *appConnConsensus) FinalizeBlockerSync(req types.RequestFinalizeBlocker) (*types.ResponseFinalizeBlocker, error) {
 	//TODO implement me
-	return app.appConn.FinalizeBlockerSync(ctx, req)
+	return app.appConn.FinalizeBlockerSync(req)
 }
 
-func (app *appConnConsensus) EndBlockSync(ctx context.Context, req types.RequestEndBlock) (*types.ResponseEndBlock, error) {
-	return app.appConn.EndBlockSync(ctx, req)
+func (app *appConnConsensus) EndBlockSync(req types.RequestEndBlock) (*types.ResponseEndBlock, error) {
+	return app.appConn.EndBlockSync(req)
 }
 
-func (app *appConnConsensus) CommitSync(ctx context.Context) (*types.ResponseCommit, error) {
-	return app.appConn.CommitSync(ctx)
+func (app *appConnConsensus) CommitSync() (*types.ResponseCommit, error) {
+	return app.appConn.CommitSync()
 }
 
 //------------------------------------------------

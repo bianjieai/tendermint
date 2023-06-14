@@ -3,7 +3,6 @@ package consensus
 import (
 	"encoding/binary"
 	"fmt"
-	"golang.org/x/net/context"
 	"os"
 	"testing"
 	"time"
@@ -148,10 +147,10 @@ func TestMempoolRmBadTx(t *testing.T) {
 	txBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(txBytes, uint64(0))
 
-	resDeliver := app.DeliverTx(nil, abci.RequestDeliverTx{Tx: txBytes})
+	resDeliver := app.DeliverTx(abci.RequestDeliverTx{Tx: txBytes})
 	assert.False(t, resDeliver.IsErr(), fmt.Sprintf("expected no error. got %v", resDeliver))
 
-	resCommit := app.Commit(nil)
+	resCommit := app.Commit()
 	assert.True(t, len(resCommit.Data) > 0)
 
 	emptyMempoolCh := make(chan struct{})
@@ -174,7 +173,7 @@ func TestMempoolRmBadTx(t *testing.T) {
 
 		// check for the tx
 		for {
-			txs := assertMempool(cs.txNotifier).ReapMaxBytesMaxGas(nil, int64(len(txBytes)), -1)
+			txs := assertMempool(cs.txNotifier).ReapMaxBytesMaxGas(int64(len(txBytes)), -1)
 			if len(txs) == 0 {
 				emptyMempoolCh <- struct{}{}
 				return
@@ -220,7 +219,7 @@ func (app *CounterApplication) Info(req abci.RequestInfo) abci.ResponseInfo {
 	return abci.ResponseInfo{Data: fmt.Sprintf("txs:%v", app.txCount)}
 }
 
-func (app *CounterApplication) DeliverTx(context context.Context, req abci.RequestDeliverTx) abci.ResponseDeliverTx {
+func (app *CounterApplication) DeliverTx(req abci.RequestDeliverTx) abci.ResponseDeliverTx {
 	txValue := txAsUint64(req.Tx)
 	if txValue != uint64(app.txCount) {
 		return abci.ResponseDeliverTx{
@@ -248,7 +247,7 @@ func txAsUint64(tx []byte) uint64 {
 	return binary.BigEndian.Uint64(tx8)
 }
 
-func (app *CounterApplication) Commit(context.Context) abci.ResponseCommit {
+func (app *CounterApplication) Commit() abci.ResponseCommit {
 	app.mempoolTxCount = app.txCount
 	if app.txCount == 0 {
 		return abci.ResponseCommit{}

@@ -2,7 +2,6 @@ package abcicli_test
 
 import (
 	"fmt"
-	"golang.org/x/net/context"
 	"testing"
 	"time"
 
@@ -115,7 +114,7 @@ type slowApp struct {
 	types.BaseApplication
 }
 
-func (slowApp) BeginBlock(context context.Context, req types.RequestBeginBlock) types.ResponseBeginBlock {
+func (slowApp) BeginBlock(req types.RequestBeginBlock) types.ResponseBeginBlock {
 	time.Sleep(200 * time.Millisecond)
 	return types.ResponseBeginBlock{}
 }

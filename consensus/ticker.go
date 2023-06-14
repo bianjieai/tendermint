@@ -1,10 +1,6 @@
 package consensus
 
 import (
-	"context"
-	"fmt"
-	"go.opentelemetry.io/otel/attribute"
-	otrace "go.opentelemetry.io/otel/trace"
 	"time"
 
 	"github.com/tendermint/tendermint/libs/log"
@@ -39,18 +35,14 @@ type timeoutTicker struct {
 	tickChan chan timeoutInfo // for scheduling timeouts
 	tockChan chan timeoutInfo // for notifying about them
 
-	tracer       otrace.Tracer
-	timeTraceCtx context.Context // 与timeSpan的生命周期相同的上下文
-	timeSpan     otrace.Span     // timeSpan 专职记录计时器等待时长，如果计时器因为任何原因结束本段计时，timeSpan都应该被关闭。
 }
 
 // NewTimeoutTicker returns a new TimeoutTicker.
-func NewTimeoutTicker(tracer otrace.Tracer) TimeoutTicker {
+func NewTimeoutTicker() TimeoutTicker {
 	tt := &timeoutTicker{
 		timer:    time.NewTimer(0),
 		tickChan: make(chan timeoutInfo, tickTockBufferSize),
 		tockChan: make(chan timeoutInfo, tickTockBufferSize),
-		tracer:   tracer,
 	}
 	tt.BaseService = *service.NewBaseService(nil, "TimeoutTicker", tt)
 	tt.stopTimer() // don't want to fire until the first scheduled timeout
@@ -94,10 +86,6 @@ func (t *timeoutTicker) stopTimer() {
 		default:
 			t.Logger.Debug("Timer already stopped")
 		}
-		if t.timeSpan != nil {
-			t.timeSpan.End()
-			t.timeSpan = nil
-		}
 	}
 }
 
@@ -131,16 +119,8 @@ func (t *timeoutTicker) timeoutRoutine() {
 			// update timeoutInfo and reset timer
 			// NOTE time.Timer allows duration to be non-positive
 			ti = newti
-			t.timeTraceCtx, t.timeSpan = t.tracer.Start(ti.HeightCtx, fmt.Sprintf("cs.state.timeoutTicker(%s)", ti.Step.String()))
-			t.timeSpan.SetAttributes(
-				attribute.Int64("height", ti.Height),
-				attribute.Int64("round", int64(ti.Round)),
-				attribute.String("step", ti.Step.String()),
-				attribute.String("duration", ti.Duration.String()),
-			)
 			t.timer.Reset(ti.Duration)
 			t.Logger.Debug("Scheduled timeout", "dur", ti.Duration, "height", ti.Height, "round", ti.Round, "step", ti.Step)
-			t.timeSpan.End()
 		case <-t.timer.C:
 			t.Logger.Info("Timed out", "dur", ti.Duration, "height", ti.Height, "round", ti.Round, "step", ti.Step)
 			// go routine here guarantees timeoutRoutine doesn't block.
@@ -153,11 +133,4 @@ func (t *timeoutTicker) timeoutRoutine() {
 			return
 		}
 	}
-}
-
-func (t *timeoutTicker) getContext() context.Context {
-	if t.timeTraceCtx != nil {
-		return t.timeTraceCtx
-	}
-	return context.Background()
 }

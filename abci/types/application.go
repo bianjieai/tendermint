@@ -19,12 +19,12 @@ type Application interface {
 
 	// Consensus Connection
 	InitChain(RequestInitChain) ResponseInitChain // Initialize blockchain w validators/other info from TendermintCore
-	ProcessProposal(context.Context, RequestProcessProposal) ResponseProcessProposal
-	BeginBlock(context.Context, RequestBeginBlock) ResponseBeginBlock // Signals the beginning of a block
-	DeliverTx(context.Context, RequestDeliverTx) ResponseDeliverTx    // Deliver a tx for full processing
-	FinalizeBlocker(context.Context, RequestFinalizeBlocker) ResponseFinalizeBlocker
-	EndBlock(context.Context, RequestEndBlock) ResponseEndBlock // Signals the end of a block, returns changes to the validator set
-	Commit(context.Context) ResponseCommit                      // Commit the state and return the application Merkle root hash
+	ProcessProposal(RequestProcessProposal) ResponseProcessProposal
+	BeginBlock(RequestBeginBlock) ResponseBeginBlock // Signals the beginning of a block
+	DeliverTx(RequestDeliverTx) ResponseDeliverTx    // Deliver a tx for full processing
+	FinalizeBlocker(RequestFinalizeBlocker) ResponseFinalizeBlocker
+	EndBlock(RequestEndBlock) ResponseEndBlock // Signals the end of a block, returns changes to the validator set
+	Commit() ResponseCommit                    // Commit the state and return the application Merkle root hash
 
 	// State Sync Connection
 	ListSnapshots(RequestListSnapshots) ResponseListSnapshots                // List available snapshots
@@ -53,7 +53,7 @@ func (BaseApplication) SetOption(req RequestSetOption) ResponseSetOption {
 	return ResponseSetOption{}
 }
 
-func (BaseApplication) DeliverTx(c context.Context, req RequestDeliverTx) ResponseDeliverTx {
+func (BaseApplication) DeliverTx(req RequestDeliverTx) ResponseDeliverTx {
 	return ResponseDeliverTx{Code: CodeTypeOK}
 }
 
@@ -61,7 +61,7 @@ func (BaseApplication) CheckTx(req RequestCheckTx) ResponseCheckTx {
 	return ResponseCheckTx{Code: CodeTypeOK}
 }
 
-func (BaseApplication) Commit(context.Context) ResponseCommit {
+func (BaseApplication) Commit() ResponseCommit {
 	return ResponseCommit{}
 }
 
@@ -73,17 +73,17 @@ func (BaseApplication) InitChain(req RequestInitChain) ResponseInitChain {
 	return ResponseInitChain{}
 }
 
-func (BaseApplication) ProcessProposal(c context.Context, req RequestProcessProposal) ResponseProcessProposal {
+func (BaseApplication) ProcessProposal(req RequestProcessProposal) ResponseProcessProposal {
 	return ResponseProcessProposal{}
 }
-func (a BaseApplication) FinalizeBlocker(ctx context.Context, req RequestFinalizeBlocker) ResponseFinalizeBlocker {
+func (a BaseApplication) FinalizeBlocker(req RequestFinalizeBlocker) ResponseFinalizeBlocker {
 	return ResponseFinalizeBlocker{}
 }
-func (BaseApplication) BeginBlock(c context.Context, req RequestBeginBlock) ResponseBeginBlock {
+func (BaseApplication) BeginBlock(req RequestBeginBlock) ResponseBeginBlock {
 	return ResponseBeginBlock{}
 }
 
-func (BaseApplication) EndBlock(c context.Context, req RequestEndBlock) ResponseEndBlock {
+func (BaseApplication) EndBlock(req RequestEndBlock) ResponseEndBlock {
 	return ResponseEndBlock{}
 }
 
@@ -133,7 +133,7 @@ func (app *GRPCApplication) SetOption(ctx context.Context, req *RequestSetOption
 }
 
 func (app *GRPCApplication) DeliverTx(ctx context.Context, req *RequestDeliverTx) (*ResponseDeliverTx, error) {
-	res := app.app.DeliverTx(nil, *req)
+	res := app.app.DeliverTx(*req)
 	return &res, nil
 }
 
@@ -148,7 +148,7 @@ func (app *GRPCApplication) Query(ctx context.Context, req *RequestQuery) (*Resp
 }
 
 func (app *GRPCApplication) Commit(ctx context.Context, req *RequestCommit) (*ResponseCommit, error) {
-	res := app.app.Commit(nil)
+	res := app.app.Commit()
 	return &res, nil
 }
 
@@ -158,22 +158,22 @@ func (app *GRPCApplication) InitChain(ctx context.Context, req *RequestInitChain
 }
 
 func (app *GRPCApplication) ProcessProposal(ctx context.Context, req *RequestProcessProposal) (*ResponseProcessProposal, error) {
-	res := app.app.ProcessProposal(nil, *req)
+	res := app.app.ProcessProposal(*req)
 	return &res, nil
 }
 
 func (app *GRPCApplication) BeginBlock(ctx context.Context, req *RequestBeginBlock) (*ResponseBeginBlock, error) {
-	res := app.app.BeginBlock(nil, *req)
+	res := app.app.BeginBlock(*req)
 	return &res, nil
 }
 
 func (app *GRPCApplication) FinalizeBlocker(ctx context.Context, req *RequestFinalizeBlocker) (*ResponseFinalizeBlocker, error) {
-	res := app.app.FinalizeBlocker(ctx, *req)
+	res := app.app.FinalizeBlocker(*req)
 	return &res, nil
 }
 
 func (app *GRPCApplication) EndBlock(ctx context.Context, req *RequestEndBlock) (*ResponseEndBlock, error) {
-	res := app.app.EndBlock(nil, *req)
+	res := app.app.EndBlock(*req)
 	return &res, nil
 }
 

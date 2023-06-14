@@ -3,8 +3,6 @@ package counter
 import (
 	"encoding/binary"
 	"fmt"
-	"golang.org/x/net/context"
-
 	"github.com/tendermint/tendermint/abci/example/code"
 	"github.com/tendermint/tendermint/abci/types"
 )
@@ -43,7 +41,7 @@ func (app *Application) SetOption(req types.RequestSetOption) types.ResponseSetO
 	return types.ResponseSetOption{}
 }
 
-func (app *Application) DeliverTx(context context.Context, req types.RequestDeliverTx) types.ResponseDeliverTx {
+func (app *Application) DeliverTx(req types.RequestDeliverTx) types.ResponseDeliverTx {
 	if app.serial {
 		if len(req.Tx) > 8 {
 			return types.ResponseDeliverTx{
@@ -82,7 +80,7 @@ func (app *Application) CheckTx(req types.RequestCheckTx) types.ResponseCheckTx 
 	return types.ResponseCheckTx{Code: code.CodeTypeOK}
 }
 
-func (app *Application) Commit(context.Context) (resp types.ResponseCommit) {
+func (app *Application) Commit() (resp types.ResponseCommit) {
 	app.hashCount++
 	if app.txCount == 0 {
 		return types.ResponseCommit{}
