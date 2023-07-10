@@ -3,8 +3,11 @@ package mempool
 import (
 	"bytes"
 	"container/list"
+	"context"
 	"crypto/sha256"
 	"fmt"
+	"github.com/tendermint/tendermint/tools/global"
+	"go.opentelemetry.io/otel/attribute"
 	"sync"
 	"sync/atomic"
 
@@ -227,7 +230,9 @@ func (mem *CListMempool) TxsWaitChan() <-chan struct{} {
 
 // It blocks if we're waiting on Update() or Reap().
 // cb: A callback from the CheckTx command.
-//     It gets called from another goroutine.
+//
+//	It gets called from another goroutine.
+//
 // CONTRACT: Either cb will get called, or err returned.
 //
 // Safe for concurrent use by multiple goroutines.
@@ -235,7 +240,12 @@ func (mem *CListMempool) CheckTx(tx types.Tx, cb func(*abci.Response), txInfo Tx
 	mem.updateMtx.RLock()
 	// use defer to unlock mutex because application (*local client*) might panic
 	defer mem.updateMtx.RUnlock()
-
+	trace := global.GetHeightTrace()
+	if trace != nil {
+		_, checkTxSpan := trace.Start(context.Background(), "Tendermint.CheckTx")
+		checkTxSpan.SetAttributes(attribute.String("tx_hash", string(tx.Hash())))
+		defer checkTxSpan.End()
+	}
 	txSize := len(tx)
 
 	if err := mem.isFull(txSize); err != nil {
@@ -346,7 +356,7 @@ func (mem *CListMempool) reqResCb(
 }
 
 // Called from:
-//  - resCbFirstTime (lock not held) if tx is valid
+//   - resCbFirstTime (lock not held) if tx is valid
 func (mem *CListMempool) addTx(memTx *mempoolTx) {
 	e := mem.txs.PushBack(memTx)
 	mem.txsMap.Store(TxKey(memTx.tx), e)
@@ -355,8 +365,8 @@ func (mem *CListMempool) addTx(memTx *mempoolTx) {
 }
 
 // Called from:
-//  - Update (lock held) if tx was committed
-// 	- resCbRecheck (lock not held) if tx was invalidated
+//   - Update (lock held) if tx was committed
+//   - resCbRecheck (lock not held) if tx was invalidated
 func (mem *CListMempool) removeTx(tx types.Tx, elem *clist.CElement, removeFromCache bool) {
 	mem.txs.Remove(elem)
 	elem.DetachPrev()
@@ -518,7 +528,13 @@ func (mem *CListMempool) notifyTxsAvailable() {
 func (mem *CListMempool) ReapMaxBytesMaxGas(maxBytes, maxGas int64) types.Txs {
 	mem.updateMtx.RLock()
 	defer mem.updateMtx.RUnlock()
-
+	span := global.TraceReapTx()
+	if span != nil {
+		span.SetAttributes(attribute.Int64("maxBytes", maxBytes))
+		span.SetAttributes(attribute.Int64("maxGas", maxGas))
+		span.SetAttributes(attribute.Int("memTxsLen", mem.txs.Len()))
+		defer span.End()
+	}
 	var totalGas int64
 
 	// TODO: we will get a performance boost if we have a good estimate of avg

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/tendermint/tendermint/tools/global"
 	"io/ioutil"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -580,7 +582,6 @@ func (cs *State) updateToState(state sm.State) {
 			cs.Height, state.LastBlockHeight,
 		))
 	}
-
 	if !cs.state.IsEmpty() {
 		if cs.state.LastBlockHeight > 0 && cs.state.LastBlockHeight+1 != cs.Height {
 			// This might happen when someone else is mutating cs.state.
@@ -889,6 +890,7 @@ func (cs *State) handleTimeout(ti timeoutInfo, rs cstypes.RoundState) {
 	case cstypes.RoundStepNewHeight:
 		// NewRound event fired from enterNewRound.
 		// XXX: should we fire timeout here (for timeout commit)?
+		global.TraceHeight(ti.Height)
 		cs.enterNewRound(ti.Height, 0)
 
 	case cstypes.RoundStepNewRound:
@@ -952,7 +954,9 @@ func (cs *State) handleTxsAvailable() {
 // Used internally by handleTimeout and handleMsg to make state transitions
 
 // Enter: `timeoutNewHeight` by startTime (commitTime+timeoutCommit),
-// 	or, if SkipTimeoutCommit==true, after receiving all precommits from (height,round-1)
+//
+//	or, if SkipTimeoutCommit==true, after receiving all precommits from (height,round-1)
+//
 // Enter: `timeoutPrecommits` after any +2/3 precommits from (height,round-1)
 // Enter: +2/3 precommits for nil at (height,round-1)
 // Enter: +2/3 prevotes any or +2/3 precommits for block or any from (height, round)
@@ -967,8 +971,9 @@ func (cs *State) enterNewRound(height int64, round int32) {
 		)
 		return
 	}
-
+	span := global.TraceNewRound(height, round)
 	if now := tmtime.Now(); cs.StartTime.After(now) {
+		global.WithLogInfo(span, "need to set a buffer and log message here for sanity")
 		logger.Debug("need to set a buffer and log message here for sanity", "start_time", cs.StartTime, "now", now)
 	}
 
@@ -991,6 +996,7 @@ func (cs *State) enterNewRound(height int64, round int32) {
 		// and meanwhile we might have received a proposal
 		// for round 0.
 	} else {
+		global.WithLogInfo(span, "resetting proposal info")
 		logger.Debug("resetting proposal info")
 		cs.Proposal = nil
 		cs.ProposalBlock = nil
@@ -1001,6 +1007,7 @@ func (cs *State) enterNewRound(height int64, round int32) {
 	cs.TriggeredTimeoutPrecommit = false
 
 	if err := cs.eventBus.PublishEventNewRound(cs.NewRoundEvent()); err != nil {
+		global.WithLogInfo(span, "failed publishing new round:"+err.Error())
 		cs.Logger.Error("failed publishing new round", "err", err)
 	}
 
@@ -1037,7 +1044,9 @@ func (cs *State) needProofBlock(height int64) bool {
 
 // Enter (CreateEmptyBlocks): from enterNewRound(height,round)
 // Enter (CreateEmptyBlocks, CreateEmptyBlocksInterval > 0 ):
-// 		after enterNewRound(height,round), after timeout of CreateEmptyBlocksInterval
+//
+//	after enterNewRound(height,round), after timeout of CreateEmptyBlocksInterval
+//
 // Enter (!CreateEmptyBlocks) : after enterNewRound(height,round), once txs are in the mempool
 func (cs *State) enterPropose(height int64, round int32) {
 	logger := cs.Logger.With("height", height, "round", round)
@@ -1051,7 +1060,10 @@ func (cs *State) enterPropose(height int64, round int32) {
 	}
 
 	logger.Debug("entering propose step", "current", fmt.Sprintf("%v/%v/%v", cs.Height, cs.Round, cs.Step))
-
+	span := global.TracePropose(height, round)
+	if span != nil {
+		defer span.End()
+	}
 	defer func() {
 		// Done enterPropose:
 		cs.updateRoundStep(round, cstypes.RoundStepPropose)
@@ -1070,6 +1082,7 @@ func (cs *State) enterPropose(height int64, round int32) {
 
 	// Nothing more to do if we're not a validator
 	if cs.privValidator == nil {
+		global.WithLogInfo(span, "node is not a validator")
 		logger.Debug("node is not a validator")
 		return
 	}
@@ -1080,6 +1093,7 @@ func (cs *State) enterPropose(height int64, round int32) {
 		// If this node is a validator & proposer in the current round, it will
 		// miss the opportunity to create a block.
 		logger.Error("propose step; empty priv validator public key", "err", errPubKeyIsNotSet)
+		global.WithLogInfo(span, "node is not a validator:"+errPubKeyIsNotSet.Error())
 		return
 	}
 
@@ -1088,13 +1102,16 @@ func (cs *State) enterPropose(height int64, round int32) {
 	// if not a validator, we're done
 	if !cs.Validators.HasAddress(address) {
 		logger.Debug("node is not a validator", "addr", address, "vals", cs.Validators)
+		global.WithLogInfo(span, "node is not a validator"+"addr:"+address.String())
 		return
 	}
 
 	if cs.isProposer(address) {
 		logger.Debug("propose step; our turn to propose", "proposer", address)
+		global.WithLogInfo(span, "propose step; our turn to propose:"+address.String())
 		cs.decideProposal(height, round)
 	} else {
+		global.WithLogInfo(span, "propose step; not our turn to propose:"+cs.Validators.GetProposer().Address.String())
 		logger.Debug("propose step; not our turn to propose", "proposer", cs.Validators.GetProposer().Address)
 	}
 }
@@ -1216,7 +1233,10 @@ func (cs *State) enterPrevote(height int64, round int32) {
 		)
 		return
 	}
-
+	span := global.TracePrevote(height, round)
+	if span != nil {
+		defer span.End()
+	}
 	defer func() {
 		// Done enterPrevote:
 		cs.updateRoundStep(round, cstypes.RoundStepPrevote)
@@ -1314,7 +1334,10 @@ func (cs *State) enterPrecommit(height int64, round int32) {
 	}
 
 	logger.Debug("entering precommit step", "current", fmt.Sprintf("%v/%v/%v", cs.Height, cs.Round, cs.Step))
-
+	span := global.TracePrecommit(height, round)
+	if span != nil {
+		defer span.End()
+	}
 	defer func() {
 		// Done enterPrecommit:
 		cs.updateRoundStep(round, cstypes.RoundStepPrecommit)
@@ -1327,8 +1350,10 @@ func (cs *State) enterPrecommit(height int64, round int32) {
 	// If we don't have a polka, we must precommit nil.
 	if !ok {
 		if cs.LockedBlock != nil {
+			global.WithLogInfo(span, "precommit step; no +2/3 prevotes during enterPrecommit while we are locked; precommitting nil")
 			logger.Debug("precommit step; no +2/3 prevotes during enterPrecommit while we are locked; precommitting nil")
 		} else {
+			global.WithLogInfo(span, "precommit step; no +2/3 prevotes during enterPrecommit; precommitting nil")
 			logger.Debug("precommit step; no +2/3 prevotes during enterPrecommit; precommitting nil")
 		}
 
@@ -1557,7 +1582,11 @@ func (cs *State) finalizeCommit(height int64) {
 		)
 		return
 	}
-
+	span := global.TraceFinalizeCommit(height, cs.Round)
+	if span != nil {
+		defer span.End()
+		defer global.FinishRoundSpan(height, cs.Round)
+	}
 	blockID, ok := cs.Votes.Precommits(cs.CommitRound).TwoThirdsMajority()
 	block, blockParts := cs.ProposalBlock, cs.ProposalBlockParts
 
@@ -1574,7 +1603,10 @@ func (cs *State) finalizeCommit(height int64) {
 	if err := cs.blockExec.ValidateBlock(cs.state, block); err != nil {
 		panic(fmt.Errorf("+2/3 committed an invalid block: %w", err))
 	}
-
+	global.WithLogInfo(span, "finalizing commit of block")
+	global.WithLogInfoKV(span, "blockHash", block.Hash().String())
+	global.WithLogInfoKV(span, "appHash", block.AppHash.String())
+	global.WithLogInfoKV(span, "num_txs", strconv.Itoa(len(block.Txs)))
 	logger.Info(
 		"finalizing commit of block",
 		"hash", block.Hash(),
@@ -1591,8 +1623,13 @@ func (cs *State) finalizeCommit(height int64) {
 		// but may differ from the LastCommit included in the next block
 		precommits := cs.Votes.Precommits(cs.CommitRound)
 		seenCommit := precommits.MakeCommit()
+		saveBlockSpan := global.TraceFinalizeCommitSpan("SaveBlock")
 		cs.blockStore.SaveBlock(block, blockParts, seenCommit)
+		if saveBlockSpan != nil {
+			saveBlockSpan.End()
+		}
 	} else {
+		global.WithLogInfo(span, "calling finalizeCommit on already stored block")
 		// Happens during replay if we already saved the block but didn't commit
 		logger.Debug("calling finalizeCommit on already stored block", "height", block.Height)
 	}
@@ -1641,6 +1678,7 @@ func (cs *State) finalizeCommit(height int64) {
 		block,
 	)
 	if err != nil {
+		global.WithLogInfo(span, "failed to apply block"+err.Error())
 		logger.Error("failed to apply block", "err", err)
 		return
 	}
@@ -1651,8 +1689,10 @@ func (cs *State) finalizeCommit(height int64) {
 	if retainHeight > 0 {
 		pruned, err := cs.pruneBlocks(retainHeight)
 		if err != nil {
+			global.WithErrInfo(span, err)
 			logger.Error("failed to prune blocks", "retain_height", retainHeight, "err", err)
 		} else {
+			global.WithLogInfo(span, "pruned blocks")
 			logger.Debug("pruned blocks", "pruned", pruned, "retain_height", retainHeight)
 		}
 	}
@@ -1667,6 +1707,7 @@ func (cs *State) finalizeCommit(height int64) {
 
 	// Private validator might have changed it's key pair => refetch pubkey.
 	if err := cs.updatePrivValidatorPubKey(); err != nil {
+		global.WithLogInfo(span, "failed to get private validator pubkey:"+err.Error())
 		logger.Error("failed to get private validator pubkey", "err", err)
 	}
 

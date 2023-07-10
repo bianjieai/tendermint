@@ -3,6 +3,8 @@ package state
 import (
 	"errors"
 	"fmt"
+	"github.com/tendermint/tendermint/tools/global"
+	"go.opentelemetry.io/otel/attribute"
 	"time"
 
 	abci "github.com/tendermint/tendermint/abci/types"
@@ -96,7 +98,10 @@ func (blockExec *BlockExecutor) CreateProposalBlock(
 	state State, commit *types.Commit,
 	proposerAddr []byte,
 ) (*types.Block, *types.PartSet) {
-
+	span := global.TraceCreateProposalBlock(height, string(state.AppHash))
+	if span != nil {
+		defer span.End()
+	}
 	maxBytes := state.ConsensusParams.Block.MaxBytes
 	maxGas := state.ConsensusParams.Block.MaxGas
 
@@ -135,7 +140,12 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	if err := validateBlock(state, block); err != nil {
 		return state, 0, ErrInvalidBlock(err)
 	}
-
+	span := global.TraceApplyBlock()
+	if span != nil {
+		span.SetAttributes(attribute.Int64("height", block.Height))
+		span.SetAttributes(attribute.String("appHash", block.AppHash.String()))
+		defer span.End()
+	}
 	startTime := time.Now().UnixNano()
 	abciResponses, err := execBlockOnProxyApp(
 		blockExec.logger, blockExec.proxyApp, block, blockExec.store, state.InitialHeight,
@@ -150,6 +160,7 @@ func (blockExec *BlockExecutor) ApplyBlock(
 
 	// Save the results before we commit.
 	if err := blockExec.store.SaveABCIResponses(block.Height, abciResponses); err != nil {
+		global.WithErrInfo(span, err)
 		return state, 0, err
 	}
 
@@ -159,11 +170,13 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	abciValUpdates := abciResponses.EndBlock.ValidatorUpdates
 	err = validateValidatorUpdates(abciValUpdates, state.ConsensusParams.Validator)
 	if err != nil {
+		global.WithErrInfo(span, err)
 		return state, 0, fmt.Errorf("error in validator updates: %v", err)
 	}
 
 	validatorUpdates, err := types.PB2TM.ValidatorUpdates(abciValUpdates)
 	if err != nil {
+		global.WithErrInfo(span, err)
 		return state, 0, err
 	}
 	if len(validatorUpdates) > 0 {
@@ -173,12 +186,14 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	// Update the state with the block and responses.
 	state, err = updateState(state, blockID, &block.Header, abciResponses, validatorUpdates)
 	if err != nil {
+		global.WithErrInfo(span, err)
 		return state, 0, fmt.Errorf("commit failed for application: %v", err)
 	}
 
 	// Lock mempool, commit app state, update mempoool.
 	appHash, retainHeight, err := blockExec.Commit(state, block, abciResponses.DeliverTxs)
 	if err != nil {
+		global.WithErrInfo(span, err)
 		return state, 0, fmt.Errorf("commit failed for application: %v", err)
 	}
 
@@ -190,6 +205,7 @@ func (blockExec *BlockExecutor) ApplyBlock(
 	// Update the app hash and save the state.
 	state.AppHash = appHash
 	if err := blockExec.store.Save(state); err != nil {
+		global.WithErrInfo(span, err)
 		return state, 0, err
 	}
 
@@ -213,6 +229,12 @@ func (blockExec *BlockExecutor) Commit(
 	block *types.Block,
 	deliverTxResponses []*abci.ResponseDeliverTx,
 ) ([]byte, int64, error) {
+	span := global.TraceCommit()
+	if span != nil {
+		span.SetAttributes(attribute.Int64("height", block.Height))
+		span.SetAttributes(attribute.String("appHash", block.AppHash.String()))
+		defer span.End()
+	}
 	blockExec.mempool.Lock()
 	defer blockExec.mempool.Unlock()
 
@@ -220,6 +242,7 @@ func (blockExec *BlockExecutor) Commit(
 	// in the ABCI app before Commit.
 	err := blockExec.mempool.FlushAppConn()
 	if err != nil {
+		global.WithErrInfo(span, err)
 		blockExec.logger.Error("client error during mempool.FlushAppConn", "err", err)
 		return nil, 0, err
 	}
@@ -227,6 +250,7 @@ func (blockExec *BlockExecutor) Commit(
 	// Commit block, get hash back
 	res, err := blockExec.proxyApp.CommitSync()
 	if err != nil {
+		global.WithErrInfo(span, err)
 		blockExec.logger.Error("client error during proxyAppConn.CommitSync", "err", err)
 		return nil, 0, err
 	}
@@ -240,6 +264,10 @@ func (blockExec *BlockExecutor) Commit(
 	)
 
 	// Update mempool.
+	mempoolUpdateSpan := global.TraceMempoolUpdate()
+	if mempoolUpdateSpan != nil {
+		defer mempoolUpdateSpan.End()
+	}
 	err = blockExec.mempool.Update(
 		block.Height,
 		block.Txs,
@@ -247,6 +275,9 @@ func (blockExec *BlockExecutor) Commit(
 		TxPreCheck(state),
 		TxPostCheck(state),
 	)
+	if err != nil {
+		global.WithErrInfo(span, err)
+	}
 
 	return res.Data, res.RetainHeight, err
 }
@@ -303,7 +334,7 @@ func execBlockOnProxyApp(
 	if pbh == nil {
 		return nil, errors.New("nil header")
 	}
-
+	beginBlockSpan := global.TraceBeginBlock()
 	abciResponses.BeginBlock, err = proxyAppConn.BeginBlockSync(abci.RequestBeginBlock{
 		Hash:                block.Hash(),
 		Header:              *pbh,
@@ -311,23 +342,38 @@ func execBlockOnProxyApp(
 		ByzantineValidators: byzVals,
 	})
 	if err != nil {
+		global.WithErrInfo(beginBlockSpan, err)
 		logger.Error("error in proxyAppConn.BeginBlock", "err", err)
 		return nil, err
 	}
+	if beginBlockSpan != nil {
+		beginBlockSpan.End()
+	}
 
 	// run txs of block
+	deliverTxAsyncSpan := global.TracDeliverTx()
 	for _, tx := range block.Txs {
 		proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
 		if err := proxyAppConn.Error(); err != nil {
+			global.WithErrInfo(deliverTxAsyncSpan, err)
 			return nil, err
 		}
 	}
-
+	if deliverTxAsyncSpan != nil {
+		deliverTxAsyncSpan.SetAttributes(attribute.Int("txs_size", len(block.Txs)))
+		deliverTxAsyncSpan.SetAttributes(attribute.Int64("height", block.Height))
+		deliverTxAsyncSpan.End()
+	}
 	// End block.
+	endBlockSpan := global.TraceEndBlock()
 	abciResponses.EndBlock, err = proxyAppConn.EndBlockSync(abci.RequestEndBlock{Height: block.Height})
 	if err != nil {
+		global.WithErrInfo(endBlockSpan, err)
 		logger.Error("error in proxyAppConn.EndBlock", "err", err)
 		return nil, err
+	}
+	if endBlockSpan != nil {
+		endBlockSpan.End()
 	}
 
 	logger.Info("executed block", "height", block.Height, "num_valid_txs", validTxs, "num_invalid_txs", invalidTxs)
