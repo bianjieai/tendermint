@@ -3,7 +3,6 @@ package mempool
 import (
 	"bytes"
 	"container/list"
-	"context"
 	"crypto/sha256"
 	"fmt"
 	"github.com/tendermint/tendermint/tools/global"
@@ -240,24 +239,25 @@ func (mem *CListMempool) CheckTx(tx types.Tx, cb func(*abci.Response), txInfo Tx
 	mem.updateMtx.RLock()
 	// use defer to unlock mutex because application (*local client*) might panic
 	defer mem.updateMtx.RUnlock()
-	trace := global.GetHeightTrace()
-	if trace != nil {
-		_, checkTxSpan := trace.Start(context.Background(), "Tendermint.CheckTx")
-		checkTxSpan.SetAttributes(attribute.String("tx_hash", string(tx.Hash())))
+	checkTxSpan := global.TraceCheckTx(tx)
+	if checkTxSpan != nil {
 		defer checkTxSpan.End()
 	}
 	txSize := len(tx)
 
 	if err := mem.isFull(txSize); err != nil {
+		global.WithErrInfo(checkTxSpan, err)
 		return err
 	}
 
 	if txSize > mem.config.MaxTxBytes {
+		global.WithErrInfo(checkTxSpan, ErrTxTooLarge{mem.config.MaxTxBytes, txSize})
 		return ErrTxTooLarge{mem.config.MaxTxBytes, txSize}
 	}
 
 	if mem.preCheck != nil {
 		if err := mem.preCheck(tx); err != nil {
+			global.WithErrInfo(checkTxSpan, err)
 			return ErrPreCheck{err}
 		}
 	}
@@ -270,6 +270,7 @@ func (mem *CListMempool) CheckTx(tx types.Tx, cb func(*abci.Response), txInfo Tx
 		// TODO: Notify administrators when WAL fails
 		_, err := mem.wal.Write(append([]byte(tx), newline...))
 		if err != nil {
+			global.WithErrInfo(checkTxSpan, err)
 			return fmt.Errorf("wal.Write: %w", err)
 		}
 	}
@@ -295,8 +296,13 @@ func (mem *CListMempool) CheckTx(tx types.Tx, cb func(*abci.Response), txInfo Tx
 		return ErrTxInCache
 	}
 
+	span := global.TraceCheckTxAsSync()
 	reqRes := mem.proxyAppConn.CheckTxAsync(abci.RequestCheckTx{Tx: tx})
 	reqRes.SetCallback(mem.reqResCb(tx, txInfo.SenderID, txInfo.SenderP2PID, cb))
+	if span != nil {
+		span.SetAttributes(attribute.String("resp", reqRes.Response.String()))
+		span.End()
+	}
 
 	return nil
 }

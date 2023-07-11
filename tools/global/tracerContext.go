@@ -3,6 +3,7 @@ package global
 import (
 	"context"
 	"fmt"
+	"github.com/tendermint/tendermint/types"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otrace "go.opentelemetry.io/otel/trace"
@@ -16,9 +17,12 @@ var (
 	FinalizeCommitCtx context.Context
 	ApplyBlockCtx     context.Context
 	BeginBlockCtx     context.Context
+	DeliverTxAsyncCtx context.Context
 	DeliverTxCtx      context.Context
 	EndBlockCtx       context.Context
 	CommitCtx         context.Context
+	CheckTcCtx        context.Context
+	RunTxCtx          context.Context
 )
 
 type JaegerCtx struct {
@@ -110,12 +114,28 @@ func GetBeginBlockCtx() context.Context {
 	return BeginBlockCtx
 }
 
-func WithDeliverTxCtx(ctx context.Context) {
+func withDeliverTxAsyncCtx(ctx context.Context) {
+	DeliverTxAsyncCtx = ctx
+}
+
+func getDeliverTxAsyncCtx() context.Context {
+	return DeliverTxAsyncCtx
+}
+
+func withDeliverTxCtx(ctx context.Context) {
 	DeliverTxCtx = ctx
 }
 
-func GetDeliverTxCtx() context.Context {
+func getDeliverTxCtx() context.Context {
 	return DeliverTxCtx
+}
+
+func withRunTxCtx(ctx context.Context) {
+	RunTxCtx = ctx
+}
+
+func getRunTxCtx() context.Context {
+	return RunTxCtx
 }
 
 func WithEndBlockCtx(ctx context.Context) {
@@ -148,6 +168,14 @@ func withMakeBlockCtx(ctx context.Context) {
 
 func getMakeBlockCtx() context.Context {
 	return MakeBlockCtx
+}
+
+func WithCheckTcCtx(ctx context.Context) {
+	CheckTcCtx = ctx
+}
+
+func GetCheckTxCtx() context.Context {
+	return CheckTcCtx
 }
 
 func WithLogInfo(span otrace.Span, info string) {
@@ -328,15 +356,69 @@ func TraceBeginBlock() otrace.Span {
 	return nil
 }
 
-func TracDeliverTx() otrace.Span {
+func TracDeliverTxAsync() otrace.Span {
 	tr := otel.GetTracerProvider()
 	if tr != nil {
 		ctx := getApplyBlockCtx()
 		if ctx != nil {
 			trace := GetHeightTrace()
-			deliverTxCtx, deliverTxSpan := trace.Start(ctx, "Tendermint.Txs-DeliverTxs")
-			WithDeliverTxCtx(deliverTxCtx)
+			deliverTxAsyncCtx, deliverTxAsyncSpan := trace.Start(ctx, "Tendermint.Txs-DeliverTxs")
+			withDeliverTxAsyncCtx(deliverTxAsyncCtx)
+			return deliverTxAsyncSpan
+		}
+	}
+	return nil
+}
+
+func TracDeliverTx() otrace.Span {
+	tr := otel.GetTracerProvider()
+	if tr != nil {
+		ctx := getDeliverTxAsyncCtx()
+		if ctx != nil {
+			trace := GetHeightTrace()
+			deliverTxCtx, deliverTxSpan := trace.Start(ctx, "CosmosSdk.DeliverTx")
+			withDeliverTxCtx(deliverTxCtx)
 			return deliverTxSpan
+		}
+	}
+	return nil
+}
+
+func TraceRunTx() otrace.Span {
+	tr := otel.GetTracerProvider()
+	if tr != nil {
+		ctx := getDeliverTxCtx()
+		if ctx != nil {
+			trace := GetHeightTrace()
+			runTxCtx, runTxSpan := trace.Start(ctx, "CosmosSdk.RunTx")
+			withRunTxCtx(runTxCtx)
+			return runTxSpan
+		}
+	}
+	return nil
+}
+
+func TraceRunHandle() otrace.Span {
+	tr := otel.GetTracerProvider()
+	if tr != nil {
+		ctx := getRunTxCtx()
+		if ctx != nil {
+			trace := GetHeightTrace()
+			_, runHandleSpan := trace.Start(ctx, "CosmosSdk.RunHandle")
+			return runHandleSpan
+		}
+	}
+	return nil
+}
+
+func TraceMsg() otrace.Span {
+	tr := otel.GetTracerProvider()
+	if tr != nil {
+		ctx := getRunTxCtx()
+		if ctx != nil {
+			trace := GetHeightTrace()
+			_, runMsgSpan := trace.Start(ctx, "CosmosSdk.RunMsg")
+			return runMsgSpan
 		}
 	}
 	return nil
@@ -382,7 +464,31 @@ func TraceMempoolUpdate() otrace.Span {
 		}
 	}
 	return nil
+}
 
+func TraceCheckTx(tx types.Tx) otrace.Span {
+	tr := otel.GetTracerProvider()
+	if tr != nil {
+		checkTxTrace := GetHeightTrace()
+		checkTxCtx, span := checkTxTrace.Start(context.Background(), "Tendermint.CheckTx")
+		WithCheckTcCtx(checkTxCtx)
+		span.SetAttributes(attribute.String("tx_hash", fmt.Sprintf(`tx_hash:%X`, tx.Hash())))
+		return span
+	}
+	return nil
+}
+
+func TraceCheckTxAsSync() otrace.Span {
+	tr := otel.GetTracerProvider()
+	if tr != nil {
+		ctx := GetCheckTxCtx()
+		if ctx != nil {
+			checkTxTrace := GetHeightTrace()
+			_, span := checkTxTrace.Start(ctx, "Tendermint.CheckTxAsSync")
+			return span
+		}
+	}
+	return nil
 }
 
 func CleanCtx() {

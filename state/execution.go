@@ -351,7 +351,7 @@ func execBlockOnProxyApp(
 	}
 
 	// run txs of block
-	deliverTxAsyncSpan := global.TracDeliverTx()
+	deliverTxAsyncSpan := global.TracDeliverTxAsync()
 	for _, tx := range block.Txs {
 		proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
 		if err := proxyAppConn.Error(); err != nil {
