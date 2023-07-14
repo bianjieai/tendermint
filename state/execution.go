@@ -353,7 +353,6 @@ func execBlockOnProxyApp(
 	// run txs of block
 	deliverTxAsyncSpan := global.TracDeliverTxAsync()
 	for _, tx := range block.Txs {
-		global.WithLogInfoKV(deliverTxAsyncSpan, "txHash", fmt.Sprintf(`txHash:%X`, tx.Hash()))
 		proxyAppConn.DeliverTxAsync(abci.RequestDeliverTx{Tx: tx})
 		if err := proxyAppConn.Error(); err != nil {
 			global.WithErrInfo(deliverTxAsyncSpan, err)
