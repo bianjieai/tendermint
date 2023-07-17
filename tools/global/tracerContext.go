@@ -186,7 +186,7 @@ func WithLogInfo(span otrace.Span, info string) {
 
 func WithLogInfoKV(span otrace.Span, key string, value string) {
 	if span != nil {
-		span.SetAttributes(attribute.String("msg", value))
+		span.SetAttributes(attribute.String(key, value))
 	}
 }
 func WithErrInfo(span otrace.Span, err error) {
