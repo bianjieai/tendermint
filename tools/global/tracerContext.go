@@ -264,7 +264,7 @@ func TraceCreateProposalBlock(height int64, appHash string) otrace.Span {
 		makeBlockCtx, span := roposeTrace.Start(ctx, "Tendermint.CreateProposalBlock")
 		withMakeBlockCtx(makeBlockCtx)
 		span.SetAttributes(attribute.Int64("height", height))
-		span.SetAttributes(attribute.String("appHash", fmt.Sprintf(`state.AppHash:%X`, appHash)))
+		span.SetAttributes(attribute.String("appHash", fmt.Sprintf(`%X`, appHash)))
 		return span
 	}
 	return nil
@@ -472,7 +472,7 @@ func TraceCheckTx(tx types.Tx) otrace.Span {
 		checkTxTrace := GetHeightTrace()
 		checkTxCtx, span := checkTxTrace.Start(context.Background(), "Tendermint.CheckTx")
 		WithCheckTcCtx(checkTxCtx)
-		span.SetAttributes(attribute.String("tx_hash", fmt.Sprintf(`tx_hash:%X`, tx.Hash())))
+		span.SetAttributes(attribute.String("tx_hash", fmt.Sprintf(`%X`, tx.Hash())))
 		return span
 	}
 	return nil
