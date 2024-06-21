@@ -43,4 +43,4 @@ require (
 	google.golang.org/grpc v1.54.0
 )
 
-replace github.com/tendermint/tm-db => github.com/Cyilong/tm-db v0.0.0-20240320101356-6d7e99cee128
+replace github.com/tendermint/tm-db => github.com/bianjieai/tm-db v0.6.8-0.20240621060201-221d9d660682
