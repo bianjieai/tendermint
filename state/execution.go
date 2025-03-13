@@ -435,6 +435,7 @@ func updateState(
 		err := types.ValidateConsensusParams(nextParams)
 		if err != nil {
 			fmt.Printf("error updating consensus params: %v", err)
+			nextParams = state.ConsensusParams
 		} else {
 			state.Version.Consensus.App = nextParams.Version.AppVersion
 			// Change results from this height but only applies to the next height.
